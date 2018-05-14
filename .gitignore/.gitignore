@@ -1,0 +1,280 @@
+Schema:
+1.Organization
+<script type="application/ld+json"> 
+{ "@context" : "http://schema.org",
+  "@type" : "Organization",
+  "legalName" : "Site Name",
+  "name":"Site Name",
+  "url" : "<?php echo bloginfo('url')?>",
+  "contactPoint" : [{
+    "@type" : "ContactPoint",
+    "telephone" : "",
+    "contactType" : "customer support"
+  }],
+  "logo" : "<?php echo get_template_directory_uri(); ?>/images/logo.png",
+   "sameAs" : [ "https://plus.google.com/",
+    "https://www.facebook.com/",
+    "https://twitter.com/",
+    "https://www.instagram.com/",
+    "https://www.youtube.com/"]
+}
+</script>
+2.WebSite
+<script WebSitetype="application/ld+json">
+{
+  "@context" : "http://schema.org",
+  "@type" : "WebSite", 
+  "name" : "Site Name",
+  "url" : "<?php echo bloginfo('url')?>",
+  "potentialAction" : {
+    "@type" : "SearchAction",
+    "target": "<?php echo bloginfo('url')?>/?s={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }                     
+}
+</script>
+3.PostalAddress
+<script type="application/ld+json">
+{
+  "@context": "http://schema.org",
+  "@type": "PostalAddress",
+  "streetAddress": "The Bungalow",
+  "addressLocality": "Bircher",
+  "addressRegion": "Herefordshire",
+  "postalCode": "HR6 0BS"  
+}
+</script>
+
+4.Navigation Ubermenu Schema
+function um_schema_filter( $nav_menu , $args ){
+   if( isset( $args->uber_integration_type ) ){
+      $nav_menu = str_replace( '<nav ' , '<nav role="navigation" itemscope="itemscope" itemtype="http://schema.org/SiteNavigationElement" ' , $nav_menu );
+	  $nav_menu = str_replace( '<a ' , '<a itemprop="url" ' , $nav_menu );
+	  $nav_menu = str_replace( '<span ' , '<span itemprop="name" ' , $nav_menu );
+   }
+   return $nav_menu;
+}
+add_filter( 'wp_nav_menu' , 'um_schema_filter' , 20 , 2 );
+======================================================================================
+Custom Except :
+
+function get_the_custom_excerpt($limit){
+	$excerpt = get_the_content();
+	$excerpt = preg_replace(" (\[.*?\])",'',$excerpt);
+	$excerpt = strip_shortcodes($excerpt);
+	$excerpt = strip_tags($excerpt);
+	$excerpt = substr(trim($excerpt), 0, $limit);
+	$excerpt = substr(trim($excerpt), 0, strripos($excerpt, " "));
+	$excerpt = trim(preg_replace( '/\s+/', ' ', $excerpt));
+	$excerpt = $excerpt;
+	return $excerpt;
+}
+
+=======================================================================================
+1.Custome Meta field add in backend
+/* Register metabox for related case study on solution page */
+function adding_custom_meta_boxes() {
+	//global $post;
+	global $post;
+
+    if(!empty($post))
+    {
+        $pageTemplate = get_post_meta($post->ID, '_wp_page_template', true);
+
+        if($pageTemplate == 'solution-template.php' )
+        {
+   
+		add_meta_box( 
+			'related_case_studies',
+			__( 'Related Case Studies' ),
+			'render_related_case_studies',
+			array('page'),
+			'normal',
+			'default'
+		);
+		}else{
+			add_meta_box( 
+			'related_case_studies',
+			__( 'Related Case Studies' ),
+			'render_related_case_studies',
+			array('solutions','products'),
+			'normal',
+			'default'
+			);
+		}
+	}
+}
+ 
+add_action( 'add_meta_boxes', 'adding_custom_meta_boxes' );
+
+
+function render_related_case_studies(){
+	global $post;
+	?>
+    <div class="">
+    	<table>
+        	<tr>
+            <th>Related Case study</th>
+            <td>
+            	<?php
+            	$child_pages = get_children( array( 'post_parent' => 169, 'post_status' => 'publish', 'orderby' => 'date', 'order' => 'ASC' ) );
+                //print_r($child_pages);
+$related_case = get_post_meta( $post->ID, 'related_case_study',true);
+
+				?>
+                <select name="related_case_study">
+                <option value=""><?php _e("Select Case study",""); ?></option>
+                <?php
+				foreach( $child_pages as $case_studies )
+				{
+					$second_titles = get_option( 'second_title', FALSE );
+				?>                  
+                	<option <?php echo selected($related_case,$case_studies->ID ); ?>value="<?php echo $case_studies->ID; ?>"><?php echo $second_titles[$case_studies->ID]; ?></option> 
+                  
+                <?php
+				}
+				?>    
+                </select>
+            </td>
+            </tr>
+        </table>
+    </div>
+    <?php
+}
+
+add_action( 'save_post', 'save_post_related_casestudy',10,2 );
+function save_post_related_casestudy( $post_id, $post ){
+	if( $post->post_type != 'solutions' && $post->post_type != 'products' && $post->post_type != 'page' )
+	return;
+	
+	// Autosave, do nothing
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) 
+			return;
+	
+	// AJAX? Not used here
+	if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) 
+			return;
+	
+	// Check user permissions
+	if ( ! current_user_can( 'edit_post', $post_id ) )
+			return;
+	
+	if( ! isset($_POST['related_case_study']))
+		return;
+
+	update_post_meta( $post_id, 'related_case_study', $_POST['related_case_study'] );	
+}
+
+---------------------IN PAGE Template------------
+			$case_study_id = get_post_meta( $post->ID, 'related_case_study',true);
+			$child_pages = array();
+			if($case_study_id != '')
+			{
+				$child_pages[] = get_post( $case_study_id ); 
+			}
+			else
+			{
+            	$child_pages = get_children( array( 'post_parent' => 169,'posts_per_page'   => 1, 'post_status' => 'published', 'orderby' => 'date', 'order' => 'DESC' ,) ); 
+			}
+            $second_title = get_option( 'second_title', array() ); 												
+            ?>
+                <div class="o">
+				  <?php if( $child_pages )
+						{
+						foreach( $child_pages as $post )
+						{
+							setup_postdata( $post );   
+						<!--loop here-->	
+
+
+                 ?>
+============================================================================================
+1.Extra Field add in user_profile
+add_action( 'show_user_profile', 'my_show_extra_profile_fields' );
+add_action( 'edit_user_profile', 'my_show_extra_profile_fields' );
+
+function my_show_extra_profile_fields( $user ) { ?>
+
+	<h3>Extra profile information</h3>
+
+	<table class="form-table">
+
+		<tr>
+			<th><label for="company">Company</label></th>
+
+			<td>
+				<input type="text" name="company" id="company" value="<?php echo esc_attr( get_the_author_meta( 'company', $user->ID ) ); ?>" class="regular-text" /><br />
+				<span class="description">Please enter your Company.</span>
+			</td>
+		</tr>
+		<tr>
+			<th><label for="position">Position</label></th>
+
+			<td><?php get_usermeta($user->ID, 'position' ); ?>
+				<input type="text" name="position" id="position" value="<?php echo esc_attr( get_the_author_meta( 'position', $user->ID ) ); ?>" class="regular-text" /><br />
+				<span class="description">Please enter your position.</span>
+			</td>
+		</tr>
+
+	</table>
+<?php }
+
+add_action( 'personal_options_update', 'my_save_extra_profile_fields' );
+add_action( 'edit_user_profile_update', 'my_save_extra_profile_fields' );
+
+function my_save_extra_profile_fields( $user_id ) {
+
+	/* Copy and paste this line for additional fields. Make sure to change 'twitter' to the field ID. */
+	update_usermeta( $user_id, 'company', $_POST['company'] );
+	update_usermeta( $user_id, 'position', $_POST['position'] );
+}
+
+================================================================================
+
+Related Content Tag Add in backend
+
+function related_content_tag($atts){ 
+  
+		ob_start();
+		global $item;
+		$tagitem = $atts['tagname'];
+
+		$sap_terms = get_terms( 'my_tags', array('name__like' => $tagitem) ); 
+		foreach($sap_terms as $sap_term){
+			$all_terms[] = $sap_term->slug;
+		}
+		$sap_args = array(
+		'post_type'=> array('post','prelease','pcoverage'),
+		'posts_per_page'=> 4,
+		'post_status'    => 'publish',
+		'order'=>'DESC',
+		'orderby'=> 'date',
+		'tax_query' => array(
+				array(
+					'taxonomy' => 'my_tags',
+					'field' => 'slug',
+					'terms' => $all_terms
+				)
+			),
+		
+		);
+		$rel_saparg = new WP_Query($sap_args);
+ ?>
+		<div class="sap-related-content">
+	 <div class="relhead-title">Related Content</div>
+		<?php  if( $rel_saparg->have_posts() ) :
+			while ($rel_saparg->have_posts()) : $rel_saparg->the_post(); ?>
+	   <div class="related-box"> 
+		 
+		  <div class="related-title"><a href="<?php the_permalink();?>"><?php the_title();?></a></div>
+		  <div class="related-text"><?php echo get_the_custom_excerpt(100) ?></div>
+		  <div class="related-readmore"><a href="<?php the_permalink();?>">Read More</a></div>
+	   </div>
+	 <?php endwhile;
+		endif; wp_reset_postdata();?>
+	</div>  
+		<?php 
+ 
+ return ob_get_clean();  
+}
+add_shortcode( 'related_content_tag_name', 'related_content_tag' );
